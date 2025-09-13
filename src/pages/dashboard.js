@@ -1,77 +1,95 @@
-import { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 
-export default function Dashboard() {
-  const { user } = useAuth();
+const Dashboard = () => {
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
+  const [message, setMessage] = useState('');
+  const token = localStorage.getItem('token');
+  const role = localStorage.getItem('role');
+  const tenant = localStorage.getItem('tenant');
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+  };
+
+  const fetchNotes = async () => {
+    try {
+      const res = await axios.get('https://notes-saas-backend-6.onrender.com/notes', { headers });
+      setNotes(res.data);
+    } catch (err) {
+      setMessage('Failed to fetch notes');
+    }
+  };
+
+  const createNote = async () => {
+    try {
+      await axios.post('https://notes-saas-backend-6.onrender.com/notes', { content: newNote }, { headers });
+      setNewNote('');
+      fetchNotes();
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Error creating note');
+    }
+  };
+
+  const deleteNote = async (id) => {
+    try {
+      await axios.delete(`https://notes-saas-backend-6.onrender.com/notes/${id}`, { headers });
+      fetchNotes();
+    } catch (err) {
+      setMessage('Error deleting note');
+    }
+  };
+
+  const upgradePlan = async () => {
+    try {
+      await axios.post(`https://notes-saas-backend-6.onrender.com/tenants/${tenant}/upgrade`, {}, { headers });
+      setMessage('Upgraded to Pro!');
+      fetchNotes();
+    } catch (err) {
+      setMessage('Upgrade failed');
+    }
+  };
 
   useEffect(() => {
-    const fetchNotes = async () => {
-      const token = localStorage.getItem('token');
-      const res = await fetch('https://notes-saas-backend-6.onrender.com/notes', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      setNotes(data.notes || []);
-    };
-
     fetchNotes();
   }, []);
 
-  const createNote = async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch('https://notes-saas-backend-6.onrender.com/notes', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ content: newNote }),
-    });
-    const data = await res.json();
-    setNotes((prev) => [...prev, data.note]);
-    setNewNote('');
-  };
-
-  const isEditor = user?.role === 'editor' || user?.role === 'admin';
-  const isViewer = user?.role === 'viewer';
-
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Welcome, {user?.name} ({user?.role})</h1>
+    <div style={{ padding: '2rem' }}>
+      <h2>Dashboard</h2>
+      <p>Logged in as: <strong>{role}</strong> | Tenant: <strong>{tenant}</strong></p>
 
-      {isEditor && (
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="New note"
-            value={newNote}
-            onChange={(e) => setNewNote(e.target.value)}
-            className="border p-2 w-64 mr-2"
-          />
-          <button onClick={createNote} className="bg-blue-500 text-white px-4 py-2 rounded">
-            Create Note
-          </button>
+      {message && <p style={{ color: 'red' }}>{message}</p>}
+
+      <h3>Your Notes</h3>
+      <ul>
+        {notes.map(note => (
+          <li key={note._id}>
+            {note.content}
+            <button onClick={() => deleteNote(note._id)} style={{ marginLeft: '1rem' }}>Delete</button>
+          </li>
+        ))}
+      </ul>
+
+      <h3>Create Note</h3>
+      <input
+        type="text"
+        value={newNote}
+        onChange={(e) => setNewNote(e.target.value)}
+        placeholder="Note content"
+      />
+      <button onClick={createNote}>Add Note</button>
+
+      {/* Show upgrade banner if Free plan and notes >= 3 */}
+      {notes.length >= 3 && role === 'Admin' && (
+        <div style={{ marginTop: '2rem', background: '#ffe0e0', padding: '1rem' }}>
+          <p>You’ve reached the Free plan limit. Upgrade to Pro for unlimited notes.</p>
+          <button onClick={upgradePlan}>Upgrade to Pro</button>
         </div>
       )}
-
-      <div>
-        <h2 className="text-xl font-semibold mb-2">Your Notes</h2>
-        <ul>
-          {notes.map((note) => (
-            <li key={note._id} className="border p-2 mb-2 rounded">
-              {note.content}
-              {/* Optional: Add edit/delete buttons for editors */}
-              {isEditor && (
-                <span className="text-sm text-gray-500 ml-2">(editable)</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   );
-}
+};
+
+export default Dashboard;
