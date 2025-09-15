@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    appDir: true, // only if you're using the /app directory
-  },
+  // appDir is now enabled by default in Next.js 15+
 };
 
 export default nextConfig;
